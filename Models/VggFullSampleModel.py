@@ -11,7 +11,6 @@ from Models.VggFullPatchesModel import *
 class VggFullSampleModel(PretrainPatchesModel):
     '''
     Reuse Imagenet Vgg 19 models to train an image by a single sampling
-    refractor but no time test
     Kaggel Score: 0.89229
     '''
     baseFolder = 'model/vggfullsample/'

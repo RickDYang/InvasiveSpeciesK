@@ -1,4 +1,5 @@
 import numpy as np
+import theano
 import time
 from keras.layers.normalization import BatchNormalization
 from keras.layers.core import Dense, Dropout, Flatten
@@ -12,6 +13,9 @@ class PretrainPatchesModel(InvasiveModel):
     Reuse Imagenet models to train an image with different patches divided
     '''
 
+    image_shape = (224, 224)
+    ratio = 0.5
+
     def __init__(self):
         InvasiveModel.__init__(self)
 
@@ -21,17 +25,17 @@ class PretrainPatchesModel(InvasiveModel):
     def getPretrainModel(self):
         return self._pretrainModel
 
-    def predict(self, modelPath = None):
+    def predict(self, data, modelPath = None):
         trainModel = self.getTrainModel()
         if modelPath == None:
             modelPath = self.savedModel
         trainModel.load_weights(self.baseFolder + modelPath)
 
-        test, _, f = self.getPretrainDataPerFolder(data_config.testData)
+        test, lables, f = self.getPretrainDataPerFolder(data)
         if test.shape[0] == 0: #has pretrained test data
             return self.directPredict(trainModel)
         else:
-            return self.pretrainPredict(trainModel, test, f)
+            return self.pretrainPredict(trainModel, test, lables, f)
 
     def directPredict(self, trainModel):
         i = 0
@@ -41,14 +45,14 @@ class PretrainPatchesModel(InvasiveModel):
             s = time.time()
             feature = pretrainModel.predict(img, batch_size = 1)
             output = trainModel.predict(np.asarray([feature]), batch_size = 1)
-            outputs.append([utils.getFileId(f), output[0][1]])
+            outputs.append([utils.getFileId(f), output[0][1], label])
             print('processed images ETA {:.02f}s - {}'.format(time.time() -s, i), end='\r')
 
         return outputs
 
-    def pretrainPredict(self, trainModel, data, files):
+    def pretrainPredict(self, trainModel, data, lables, files):
         output = trainModel.predict(data, batch_size = 32)
-        return [ [files[i], output[i][1]] for i in range(len(files))]
+        return [ [files[i], output[i][1], lables[i]] for i in range(len(files))]
 
     def debug(self, dataFolder):
         trainModel = self.getTrainModel()
@@ -79,38 +83,35 @@ class PretrainPatchesModel(InvasiveModel):
         return np.asarray(nxs), np.concatenate(nys)
 
     def pretrain(self):
-        self.pretrainPerFolder(data_config.validationData)
+        #self.pretrainPerFolder(data_config.validationData)
         self.pretrainPerFolder(data_config.testData)
         self.pretrainPerFolder(data_config.trainData)
 
     def pretrainPerFolder(self, data):
         pretrainModel = self.getPretrainModel()
-        features = list()
-        labels = list()
-        fileIds = list()
-        i = 0
-        for img, label, f in self.getImagesPatches(data.dataFolder):
-            s = time.time()
-            feature = pretrainModel.predict(img, batch_size = 1)
-            features.append(feature)
-            labels.append(label)
-            fileIds.append(utils.getFileId(f))
-            i += 1
-            print('processed images ETA {:.02f}s - {}'.format(time.time() - s, i), end='\r')
-
-        self.processPretrain(data, features, labels, fileIds)
-
-    def processPretrain(self, data, features, labels, fileIds):
-        utils.save_array(self.baseFolder + data.pretrain[0], features)
-        utils.save_array(self.baseFolder + data.pretrain[1], np.concatenate(labels))
-        utils.save_array(self.baseFolder + data.pretrain[2], fileIds)
+        with utils.pretrainWriter(self.baseFolder, data.pretrain) as writer:
+            i = 0
+            for img, label, f in self.getImagesPatches(data.dataFolder):
+                s = time.time()
+                feature = pretrainModel.predict(img, batch_size = 1)
+                #make [feature] with [] to prevent feature concatenate
+                writer([[feature], label, utils.getFileId(f)])
+                i += 1
+                print('processed images ETA {:.02f}s - {}'.format(time.time() - s, i), end='\r')
 
     def getImagesPatches(self, path):
-        batches = utils.getBatches(path, utils.invasive_image_size)
+        patchesRange = self.getPatchesRange
+        batches = utils.getBatches(path, utils.invasive_size)
         for i in range(batches.samples):
             images, labels = batches.next()
             images = np.concatenate([
-                images[:, x:x+utils.vgg_image_size[0], y:y+utils.vgg_image_size[1], :]
-                for x in utils.patch_range[0] for y in utils.patch_range[1]])
+                images[:, x:x + self.image_shape[0], y:y + self.image_shape[1], :]
+                for x in patchesRange[0] for y in patchesRange[1]])
 
             yield images, labels, batches.filenames[i]
+
+    @property
+    def getPatchesRange(self):
+        gap = [int(p * self.ratio) for p in self.image_shape]
+        return [list(range(0,utils.invasive_size[0] - self.image_shape[0], gap[0])) + [utils.invasive_size[0] - self.image_shape[0]-1],
+                list(range(0,utils.invasive_size[1] - self.image_shape[1], gap[1])) + [utils.invasive_size[0] - self.image_shape[0]-1]]

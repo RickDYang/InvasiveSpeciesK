@@ -37,4 +37,9 @@ class VggFullPatchesModel(PretrainPatchesModel):
     def getPretrainModel(self):
         if self._pretrainModel == None: 
             self._pretrainModel = VGG16(weights='imagenet', include_top=True)
+            self._pretrainModel.summary()
         return self._pretrainModel
+    
+    @property
+    def getPatchesSize(self):
+        return (224, 224)

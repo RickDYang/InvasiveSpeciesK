@@ -27,10 +27,13 @@ class InvasiveModel(object):
         np.savetxt(self.baseFolder + self.submission, outputs, 
             fmt ='%d,%.4f', header='name,invasive', comments='')
 
+    @property
+    def modelSavePath(self):
+        return self.baseFolder + self.savedModel
+
     def save(self):
-        path = self.baseFolder + self.savedModel
-        self._trainModel.save_weights(path)
-        return path
+        self._trainModel.save_weights(self.modelSavePath)
+        return self.modelSavePath
 
     def getPretrainDataPerFolder(self, data):
         x = utils.load_array(self.baseFolder + data.pretrain[0])

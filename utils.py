@@ -1,4 +1,5 @@
 import numpy as np
+import contextlib
 import shutil
 import os
 import bcolz
@@ -9,41 +10,46 @@ from multiprocessing.dummy import Pool as ThreadPool
 
 from keras.applications.vgg16 import preprocess_input
 
-vgg_image_size = (224, 224)
-invasive_image_size = (866, 1154)
-gap = (112, 112)
+invasive_size = (866, 1154)
 
-patch_range = [ list(range(invasive_image_size[0] - gap[0]))[::gap[0]],
-                list(range(invasive_image_size[1] - gap[1]))[::gap[1]]]
-patch_range[0][-1] = invasive_image_size[0] - vgg_image_size[0]
-patch_range[1][-1] = invasive_image_size[1] - vgg_image_size[1]
-
-def get_distorb_batches(path, batch_size, shuffle = True):
-    gen = image.ImageDataGenerator(rotation_range=10, width_shift_range=0.1,
-        height_shift_range=0.1, shear_range=0.1,
-        zoom_range=0.1, channel_shift_range=10, horizontal_flip=True)
-    return gen.flow_from_directory(path, target_size= vgg_image_size,
+def getBatches(path, target_size, shuffle = False, batch_size = 1):
+    gen = image.ImageDataGenerator()
+    return gen.flow_from_directory(path, target_size= target_size,
         class_mode = 'categorical', shuffle = shuffle, batch_size = batch_size)
 
-def get_data(batches):
-    x = np.concatenate([batches.next()[0] for i in range(batches.samples)])
-    y = np.concatenate([batches.next()[1] for i in range(batches.samples)])
-    return x, y
-
-def load_image_for_vgg(path):
-    img = image.load_img(path, target_size=vgg_image_size)
-    x = image.img_to_array(img)
-    x = np.expand_dims(x, axis = 0)
-    x = preprocess_input(x)
-    return x
+def get_distorb_batches(path, batch_size, target_size, shuffle = True):
+    gen = image.ImageDataGenerator(rotation_range = 30, width_shift_range = 0.1,
+        height_shift_range = 0.1, horizontal_flip = True)
+    return gen.flow_from_directory(path, target_size= target_size,
+        class_mode = 'categorical', shuffle = shuffle, batch_size = batch_size)
 
 def save_array(f, arr):
     try_mkdir(os.path.dirname(f))
     c = bcolz.carray(arr, rootdir=f, mode='w')
     c.flush()
 
+@contextlib.contextmanager
+def pretrainWriter(base_folder, folders):
+    try_mkdir(base_folder)
+    writers = [None for _ in folders]
+
+    def append(data):
+        for i, d in enumerate(data):
+            if writers[i] is None:
+                writers[i] = bcolz.carray(d, mode='w',
+                    rootdir= base_folder + folders[i])
+            else:
+                writers[i].append(d)
+            writers[i].flush()
+
+    yield append
+
+    for f in writers:
+        if f is not None:
+            f.flush()
+
 def load_array(f):
-    return bcolz.open(f)[:]
+    return bcolz.open(f)
 
 def try_mkdir(folder):
     if not os.path.exists(folder):
@@ -63,33 +69,3 @@ def copyfile(scr, dst):
 
 def getFileId(f):
     return int(os.path.splitext(os.path.basename(f))[0])
-
-img_dx = list(range(invasive_image_size[0] - gap[0]))[::gap[0]]
-img_dx[-1] = invasive_image_size[0] - vgg_image_size[0]
-img_dy = list(range(invasive_image_size[1] - gap[1]))[::gap[1]]
-img_dy[-1] = invasive_image_size[1] - vgg_image_size[1]
-
-def get_patch(img):
-    def _get(x):
-        return np.concatenate([img[:, x:x+vgg_image_size[0], y:y+vgg_image_size[0], ::]
-            for y in img_dy])
-
-    return _get
-
-def getBatches(path, target_size = vgg_image_size, shuffle = False, batch_size = 1):
-    gen = image.ImageDataGenerator()
-    return gen.flow_from_directory(path, target_size= target_size,
-        class_mode = 'categorical', shuffle = shuffle, batch_size = batch_size)
-
-
-def get_images_patches(path):
-    gen = image.ImageDataGenerator()
-    batches = gen.flow_from_directory(path, target_size= invasive_image_size,
-        class_mode = 'categorical', shuffle = False, batch_size = 1)
-    n = batches.samples
-    for _ in range(n):
-        full, labels = batches.next()
-        img = np.concatenate([full[:, x:x+vgg_image_size[0], y:y+vgg_image_size[1], :]
-            for x in img_dx for y in img_dy])
-
-        yield img, labels, n

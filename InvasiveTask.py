@@ -11,8 +11,8 @@ from Models.VggFullSampleModel import *
 from Models.ResNet50PatchesModel import *
 
 
-import theano
-print(theano.config.device)
+#import theano
+#print(theano.config.device)
 
 def main():
     model = InvasiveModelsFactory.getInvasiveModel()

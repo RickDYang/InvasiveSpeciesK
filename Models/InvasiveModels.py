@@ -40,10 +40,3 @@ class InvasiveModel(object):
         y = utils.load_array(self.baseFolder + data.pretrain[1])
         f = utils.load_array(self.baseFolder + data.pretrain[2])
         return [x, y, f]
-
-
-
-
-
- 
-

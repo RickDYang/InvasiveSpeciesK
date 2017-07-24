@@ -5,8 +5,8 @@ import os
 import bcolz
 import keras
 import keras.preprocessing.image as image
-from multiprocessing import Pool
-from multiprocessing.dummy import Pool as ThreadPool
+#from multiprocessing import Pool
+#from multiprocessing.dummy import Pool as ThreadPool
 
 from keras.applications.vgg16 import preprocess_input
 

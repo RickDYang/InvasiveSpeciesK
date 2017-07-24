@@ -1,5 +1,4 @@
 import numpy as np
-import theano
 import time
 from keras.layers.normalization import BatchNormalization
 from keras.layers.core import Dense, Dropout, Flatten

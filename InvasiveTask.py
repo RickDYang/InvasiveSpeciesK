@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 import os
+import keras
 from keras.optimizers import Adam, RMSprop, SGD
 from keras.callbacks import ModelCheckpoint
 import InvasiveModelsFactory
@@ -11,16 +12,30 @@ from Models.VggFullSampleModel import *
 from Models.ResNet50PatchesModel import *
 
 
-#import theano
-#print(theano.config.device)
+def theano_config():
+    import theano
+    print(theano.config.device)
+
+def tensorflow_config():
+    import tensorflow as tf
+    from keras.backend.tensorflow_backend import set_session
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth=True
+    set_session(tf.Session(config=config))
+    print('tensorflow config')
 
 def main():
+    if keras.backend.backend() == 'theano':
+        theano_config()
+    elif keras.backend.backend() == 'tensorflow':
+        tensorflow_config()
+
     model = InvasiveModelsFactory.getInvasiveModel()
     p = None if len(sys.argv) < 2 else sys.argv[1][0]
     if p == 'p':
         pretrain(model)
     elif p == 't':
-        train(model, epochs = 1000, lr = 0.0001, batch_size = 32)
+        train(model, epochs = 1000, lr = 0.0001, batch_size = 16)
     elif p == 'e':
         predict(model, data_config.testData)
     elif p == 'd':
@@ -31,7 +46,7 @@ def main():
 def pretrain(model):
     model.pretrain()
 
-def train(model, epochs = 200, lr = 0.01, batch_size = 32):
+def train(model, epochs = 200, lr = 0.01, batch_size = 16):
     trainModel = model.getTrainModel()
     trainModel.summary()
     trainModel.compile(optimizer = SGD(lr=lr, momentum=0.9), 

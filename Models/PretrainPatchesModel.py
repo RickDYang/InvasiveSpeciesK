@@ -82,7 +82,7 @@ class PretrainPatchesModel(InvasiveModel):
         return np.asarray(nxs), np.concatenate(nys)
 
     def pretrain(self):
-        #self.pretrainPerFolder(data_config.validationData)
+        self.pretrainPerFolder(data_config.validationData)
         self.pretrainPerFolder(data_config.testData)
         self.pretrainPerFolder(data_config.trainData)
 
@@ -103,11 +103,15 @@ class PretrainPatchesModel(InvasiveModel):
         batches = utils.getBatches(path, utils.invasive_size)
         for i in range(batches.samples):
             images, labels = batches.next()
+            images = self.preprocessImage(images)
             images = np.concatenate([
                 images[:, x:x + self.image_shape[0], y:y + self.image_shape[1], :]
                 for x in patchesRange[0] for y in patchesRange[1]])
 
             yield images, labels, batches.filenames[i]
+
+    def preprocessImage(self, images):
+        return images
 
     @property
     def getPatchesRange(self):

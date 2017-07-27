@@ -40,3 +40,8 @@ class VggNotopPatchesModel(VggFullPatchesModel):
         if self._pretrainModel == None: 
             self._pretrainModel = VGG16(weights='imagenet', include_top=False)
         return self._pretrainModel
+
+    def preprocessImage(self, images):
+        #remove Green channel
+        images[:,:,:,1] = 0
+        return images
